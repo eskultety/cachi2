@@ -1,4 +1,4 @@
-FROM registry.fedoraproject.org/fedora-minimal:38
+FROM registry.access.redhat.com/ubi9/ubi-minimal
 LABEL maintainer="Red Hat"
 
 WORKDIR /src
@@ -7,8 +7,7 @@ RUN microdnf -y install \
     --nodocs \
     golang-bin \
     git-core \
-    nodejs \
-    nodejs-npm \
+    npm \
     python3 \
     python3-pip \
     && microdnf clean all
@@ -24,6 +23,6 @@ WORKDIR /src/js-deps
 RUN npm install && \
     ln -s "${PWD}/node_modules/.bin/corepack" /usr/local/bin/corepack && \
     corepack enable yarn && \
-    microdnf -y remove nodejs-npm
+    microdnf -y remove npm
 
 ENTRYPOINT ["cachi2"]
