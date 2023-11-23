@@ -1,16 +1,15 @@
-FROM registry.access.redhat.com/ubi9/ubi-minimal
+FROM docker.io/library/alpine:3.18
 LABEL maintainer="Red Hat"
 
 WORKDIR /src
-RUN microdnf -y install \
-    --setopt install_weak_deps=0 \
-    --nodocs \
-    golang-bin \
-    git-core \
+RUN apk update &&\
+    apk upgrade &&\
+    apk add \
+    go \
+    git \
     npm \
     python3 \
-    python3-pip \
-    && microdnf clean all
+    py3-pip
 
 COPY . .
 
@@ -23,6 +22,6 @@ WORKDIR /src/js-deps
 RUN npm install && \
     ln -s "${PWD}/node_modules/.bin/corepack" /usr/local/bin/corepack && \
     corepack enable yarn && \
-    microdnf -y remove npm
+    apk del npm
 
 ENTRYPOINT ["cachi2"]
