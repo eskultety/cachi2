@@ -5,7 +5,7 @@ WORKDIR /src
 RUN microdnf -y install \
     --setopt install_weak_deps=0 \
     --nodocs \
-    golang \
+    golang-bin \
     git-core \
     nodejs \
     nodejs-npm \
