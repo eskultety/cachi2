@@ -308,7 +308,7 @@ original Cachito.*
 
 <https://go.dev/ref/mod>
 
-Current version: 1.21 [^go-version] [^go-compat]
+Current version: 1.21 [^go-compat]
 
 The gomod package manager works by parsing the [go.mod](https://go.dev/ref/mod#go-mod-file) file present in the source
 repository to determine which dependencies to download. Cachi2 does not parse this file on its own - rather, we rely on
@@ -321,11 +321,6 @@ versions thanks to Go's backwards compatibility[^go-compat]. Note that using go 
 benefit of downloading fewer dependencies (as noted in the changelog), in some cases drastically so.
 
 See [docs/gomod.md](docs/gomod.md) for more details.
-
-[^go-version]: Cachi2 expects to use a specific version of the `go` command when downloading dependencies. This is the
-  version installed in the [cachi2 container](#container-image). We do not guarantee correctness if you run Cachi2
-  locally (outside the container) with a different Go version. You *are* free to use a different version to build your
-  project.
 
 [^go-compat]: The `go` command promises to be backwards compatible with previous versions. If your go.mod file specifies
   the intended go version, Cachi2 should handle it appropriately. If your go version is *higher* than what Cachi2 uses,
