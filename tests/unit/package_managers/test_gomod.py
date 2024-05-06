@@ -98,8 +98,8 @@ def gomod_request(tmp_path: Path, gomod_input_packages: list[dict[str, str]]) ->
 
 
 @pytest.fixture
-def go_mod_file(tmp_path: Path, request: pytest.FixtureRequest) -> None:
-    output_file = tmp_path / "go.mod"
+def go_mod_file(rooted_tmp_path: RootedPath, request: pytest.FixtureRequest) -> None:
+    output_file = rooted_tmp_path.join_within_root("go.mod")
 
     with open(output_file, "w") as f:
         f.write(request.param)
@@ -1598,7 +1598,7 @@ def test_fetch_tags_fail(repo_remote_with_tag: tuple[RootedPath, RootedPath]) ->
     indirect=["go_mod_file"],
 )
 def test_get_gomod_version(
-    rooted_tmp_path: RootedPath, go_mod_file: Path, go_mod_version: str, go_toolchain_version: str
+    rooted_tmp_path: RootedPath, go_mod_file: RootedPath, go_mod_version: str, go_toolchain_version: str
 ) -> None:
     assert _get_gomod_version(rooted_tmp_path.join_within_root("go.mod")) == (
         go_mod_version,
@@ -1620,7 +1620,7 @@ INVALID_VERSION_STRINGS = [
     [pytest.param(_, id=_) for _ in INVALID_VERSION_STRINGS],
     indirect=True,
 )
-def test_get_gomod_version_fail(rooted_tmp_path: RootedPath, go_mod_file: Path) -> None:
+def test_get_gomod_version_fail(rooted_tmp_path: RootedPath, go_mod_file: RootedPath) -> None:
     assert _get_gomod_version(rooted_tmp_path.join_within_root("go.mod")) == (None, None)
 
 
