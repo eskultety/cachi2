@@ -37,13 +37,7 @@ if TYPE_CHECKING:
     from typing_extensions import Self
 
 from cachi2.core.config import get_config
-from cachi2.core.errors import (
-    FetchError,
-    PackageManagerError,
-    PackageRejected,
-    UnexpectedFormat,
-    UnsupportedFeature,
-)
+from cachi2.core.errors import FetchError, PackageManagerError, PackageRejected, UnexpectedFormat
 from cachi2.core.models.input import Request
 from cachi2.core.models.output import EnvironmentVariable, RequestOutput
 from cachi2.core.models.property_semantics import PropertySet
@@ -940,16 +934,39 @@ def _go_list_deps(
     )
 
 
-def _parse_packages(go: Go, run_params: dict[str, Any]) -> Iterator[ParsedPackage]:
+def _parse_packages(
+    go: Go, run_params: dict[str, Any], app_dir: RootedPath, workspace_modules: list[ParsedModule]
+) -> Iterator[ParsedPackage]:
     """Return all Go packages for the project.
 
-    Query the packages from the root of the project.
+    Query the packages from the root of the project. If the project uses Go workspaces (1.18+) we
+    additionally need to execute the query from every workspace module because 'go list' command
+    isn't workspace aware and doesn't return all results if run just from the project root.
 
     :param go: Go executable wrapper instance
     :param run_params: Additional run cmd params
+    :param app_dir: project source dir path
+    :param workspace_modules: list of workspace modules to query packages for
     :return: ParsedPackage iterator
     """
-    return iter(_go_list_deps(go, "./...", run_params))
+    all_packages: Iterable[ParsedPackage] = []
+
+    if not workspace_modules:
+        all_packages = _go_list_deps(go, "./...", run_params)
+    else:
+        # If there are workspace modules we need to run 'list -e ./...' under every local module
+        # path because 'go list' command isn't fully properly workspace context aware
+        for module in workspace_modules:
+            module_path = module.path if module.replace is None else module.replace.path
+            try:
+                resolved_path = app_dir.join_within_root(module_path)
+            except PathOutsideRoot:
+                # Impossible - workspaces always contain local-only modules
+                raise RuntimeError(f"Found a non-local Go workspace module: {module_path}")
+
+            run_params.setdefault("cwd", resolved_path.path)
+            all_packages = chain(all_packages, _go_list_deps(go, "./...", run_params))
+    return iter(all_packages)
 
 
 def _resolve_gomod(
@@ -1018,13 +1035,7 @@ def _resolve_gomod(
     # Vendor dependencies if the gomod-vendor flag is set
     flags = request.flags
     if should_vendor:
-        if go_work and go_work["dir"].path.join("vendor").is_dir():
-            # NOTE: the same error will be reported even for 1.21 which doesn't support workspace
-            # vendoring, but given it's an invalid configuration and that we plan full 1.22 support
-            # in the foreseeable future, a not so user friendly error should be fine
-            raise UnsupportedFeature("Go workspace vendoring is not supported")
-
-        downloaded_modules = _vendor_deps(go, app_dir, run_params)
+        downloaded_modules = _vendor_deps(go, app_dir, bool(go_work), run_params)
     else:
         log.info("Downloading the gomod dependencies")
         downloaded_modules = (
@@ -1048,7 +1059,7 @@ def _resolve_gomod(
     _validate_local_replacements(all_modules, app_dir)
 
     log.info("Retrieving the list of packages")
-    all_packages = _parse_packages(go, run_params)
+    all_packages = _parse_packages(go, run_params, app_dir, workspace_modules)
 
     return ResolvedGoModule(main_module, all_modules, all_packages, modules_in_go_sum)
 
@@ -1542,9 +1553,9 @@ def _validate_local_replacements(modules: Iterable[ParsedModule], app_path: Root
             raise
 
 
-def _parse_vendor(module_dir: RootedPath) -> Iterable[ParsedModule]:
+def _parse_vendor(context_dir: RootedPath) -> Iterable[ParsedModule]:
     """Parse modules from vendor/modules.txt."""
-    modules_txt = module_dir.join_within_root("vendor", "modules.txt")
+    modules_txt = context_dir.join_within_root("vendor", "modules.txt")
     if not modules_txt.path.exists():
         return []
 
@@ -1602,24 +1613,27 @@ def _parse_vendor(module_dir: RootedPath) -> Iterable[ParsedModule]:
 
 def _vendor_deps(
     go: Go,
-    app_dir: RootedPath,
+    context_dir: RootedPath,
+    has_workspaces: bool,
     run_params: dict[str, Any],
 ) -> Iterable[ParsedModule]:
     """
     Vendor golang dependencies.
 
-    If Cachi2 is not allowed to make changes, it will verify that the vendor directory already
-    contained the correct content.
+    Cachi2 checks the vendor directory for updated content, failing if Go'd be to make any changes.
 
     :param app_dir: path to the module directory
     :param run_params: common params for the subprocess calls to `go`
+    :param has_workspace: whether we detected Go workspaces in the repo (affects @context_dir)
     :return: the list of Go modules parsed from vendor/modules.txt
-    :raise PackageRejected: if vendor directory changed and Cachi2 is not allowed to make changes
+    :raise PackageRejected: if vendor directory changed
     :raise UnexpectedFormat: if Cachi2 fails to parse vendor/modules.txt
     """
     log.info("Vendoring the gomod dependencies")
-    go(["mod", "vendor"], run_params)
-    if _vendor_changed(app_dir):
+
+    cmdscope = "work" if has_workspaces else "mod"
+    go([cmdscope, "vendor"], run_params)
+    if _vendor_changed(context_dir):
         raise PackageRejected(
             reason=(
                 "The content of the vendor directory is not consistent with go.mod. "
@@ -1627,23 +1641,25 @@ def _vendor_deps(
             ),
             solution=(
                 "Please try running `go mod vendor` and committing the changes.\n"
-                "Note that you may need to `git add --force` ignored files in the vendor/ dir.\n"
-                "Also consider whether you really want the -check variant of the flag."
+                "Note that you may need to `git add --force` ignored files in the vendor/ dir."
             ),
             docs=VENDORING_DOC,
         )
-    return _parse_vendor(app_dir)
+    return _parse_vendor(context_dir)
 
 
-def _vendor_changed(app_dir: RootedPath) -> bool:
-    """Check for changes in the vendor directory."""
-    repo_root = app_dir.root
-    vendor = app_dir.path.relative_to(repo_root).joinpath("vendor")
+def _vendor_changed(context_dir: RootedPath) -> bool:
+    """Check for changes in the vendor directory.
+
+    :param context_dir: main module dir OR workspace context (directory containing go.work)
+    """
+    repo_root = context_dir.root
+    vendor = context_dir.path.relative_to(repo_root).joinpath("vendor")
     modules_txt = vendor / "modules.txt"
 
     repo = git.Repo(repo_root)
     # Add untracked files but do not stage them
-    repo.git.add("--intent-to-add", "--force", "--", app_dir)
+    repo.git.add("--intent-to-add", "--force", "--", context_dir)
 
     try:
         # Diffing modules.txt should catch most issues and produce relatively useful output
@@ -1658,6 +1674,6 @@ def _vendor_changed(app_dir: RootedPath) -> bool:
             log.error("%s directory changed after vendoring:\n%s", vendor, vendor_diff)
             return True
     finally:
-        repo.git.reset("--", app_dir)
+        repo.git.reset("--", context_dir)
 
     return False
