@@ -5,7 +5,6 @@ version: 2
 updates:
   - package-ecosystem: "docker"
     directory: "/"
-    target-branch: "rocky-test"
     schedule:
       interval: "daily"
 
