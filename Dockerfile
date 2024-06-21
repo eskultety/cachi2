@@ -1,5 +1,5 @@
 # hadolint global ignore=DL3007
-FROM docker.io/rockylinux/rockylinux:9.3@sha256:0e03560c97b83bf0a478866cc086a0185730123009267de9cd33d09f1e51c5da
+FROM docker.io/rockylinux/rockylinux:9.4@sha256:4b9c7b0285aa68f45ef42308fb7a364ffb63b461645cfb22c53212d85d16bf93
 LABEL maintainer="Red Hat"
 
 WORKDIR /src
