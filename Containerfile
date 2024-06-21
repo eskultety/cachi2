@@ -1,9 +1,9 @@
 # hadolint global ignore=DL3007
-FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+FROM docker.io/rockylinux/rockylinux:9.3@sha256:0e03560c97b83bf0a478866cc086a0185730123009267de9cd33d09f1e51c5da
 LABEL maintainer="Red Hat"
 
 WORKDIR /src
-RUN microdnf -y install \
+RUN dnf -y install \
     --setopt install_weak_deps=0 \
     --nodocs \
     gcc \
@@ -15,7 +15,7 @@ RUN microdnf -y install \
     python3-devel \
     python3-pip \
     python3-setuptools \
-    && microdnf clean all
+    && dnf clean all
 
 COPY . .
 
@@ -28,20 +28,6 @@ WORKDIR /src/js-deps
 RUN npm install && \
     ln -s "${PWD}/node_modules/.bin/corepack" /usr/local/bin/corepack && \
     corepack enable yarn && \
-    microdnf -y remove npm
-
-# Manual install of specific fixed Go SDK versions (1.20 & 1.21.0):
-#   - install Go's official shim
-#   - let the shim download the actual Go SDK (the download forces the output parent dir to $HOME)
-#   - move the SDK to a host local install system-wide location
-#   - remove the shim as it forces and expects the SDK to be used from $HOME
-#   - clean any build artifacts Go creates as part of the process.
-RUN for go_ver in "go1.20" "go1.21.0"; do \
-        go install "golang.org/dl/${go_ver}@latest" && \
-        "$HOME/go/bin/$go_ver" download && \
-        mkdir -p /usr/local/go && \
-        mv "$HOME/sdk/$go_ver" /usr/local/go && \
-        rm -rf "$HOME/go" "$HOME/.cache/go-build/"; \
-    done
+    dnf -y remove npm
 
 ENTRYPOINT ["cachi2"]
