@@ -33,7 +33,7 @@ from cachi2.core.package_managers.gomod import (
     _deduplicate_resolved_modules,
     _disable_telemetry,
     _get_go_sum_files,
-    _get_go_work_path,
+    _get_go_work_context_dir,
     _get_gomod_version,
     _get_repository_name,
     _parse_go_sum,
@@ -139,7 +139,7 @@ def _parse_mocked_data(data_dir: Path, file_path: str) -> ResolvedGoModule:
     ),
 )
 @mock.patch("cachi2.core.package_managers.gomod._disable_telemetry")
-@mock.patch("cachi2.core.package_managers.gomod._get_go_work_path")
+@mock.patch("cachi2.core.package_managers.gomod._get_go_work_context_dir")
 @mock.patch("cachi2.core.package_managers.gomod.Go.release", new_callable=mock.PropertyMock)
 @mock.patch("cachi2.core.package_managers.gomod._get_gomod_version")
 @mock.patch("cachi2.core.package_managers.gomod.ModuleVersionResolver")
@@ -773,30 +773,30 @@ def test_get_go_sum_files(
 
 
 @pytest.mark.parametrize(
-    "path_to_go_work_file, should_return_none",
+    "gowork_var_value, expected",
     (
-        pytest.param(Template("$tmp_path/project"), False, id="go_work_exists"),
-        pytest.param(Template(""), True, id="go_work_does_not_exist"),
-        pytest.param(Template("off"), True, id="go_work_disabled"),
+        pytest.param(Template("$tmp_path/go.work"), Template("$tmp_path"), id="go_work_exists"),
+        pytest.param(Template(""), None, id="go_work_does_not_exist"),
+        pytest.param(Template("off"), None, id="go_work_disabled"),
     ),
 )
 @mock.patch("cachi2.core.package_managers.gomod.Go.__call__")
-def test_get_go_work_path(
+def test_get_go_work_context_dir(
     mock_run: mock.Mock,
-    path_to_go_work_file: Template,
-    should_return_none: bool,
-    tmp_path: Path,
+    gowork_var_value: Template,
+    expected: Optional[Template],
+    rooted_tmp_path: RootedPath,
 ) -> None:
-    mock_run.return_value = path_to_go_work_file.substitute({"tmp_path": tmp_path})
 
-    repo_root = RootedPath(tmp_path)
+    expected_path: Optional[RootedPath]
+    mock_run.return_value = gowork_var_value.safe_substitute({"tmp_path": str(rooted_tmp_path)})
 
-    go_work_path = _get_go_work_path(repo_root)
-
-    if should_return_none:
-        assert go_work_path is None
+    if expected is None:
+        expected_path = expected
     else:
-        assert go_work_path == repo_root
+        expected_path = RootedPath(expected.safe_substitute({"tmp_path": str(rooted_tmp_path)}))
+
+    assert expected_path == _get_go_work_context_dir(rooted_tmp_path)
 
 
 @mock.patch("cachi2.core.package_managers.gomod.Go.__call__")
@@ -805,10 +805,8 @@ def test_get_go_work_path_when_go_work_is_outside_of_repo(
 ) -> None:
     mock_run.return_value = "/a/random/path/go.work"
 
-    error_message = f"Joining path '/a/random/path' to '{rooted_tmp_path}': target is outside '{rooted_tmp_path}'"
-
-    with pytest.raises(PathOutsideRoot, match=error_message):
-        _get_go_work_path(rooted_tmp_path)
+    with pytest.raises(PathOutsideRoot):
+        _get_go_work_context_dir(rooted_tmp_path)
 
 
 @pytest.mark.parametrize("has_workspaces", (False, True))
@@ -1774,9 +1772,9 @@ def test_missing_gomod_file(
 @mock.patch("cachi2.core.package_managers.gomod._resolve_gomod")
 @mock.patch("cachi2.core.package_managers.gomod.GoCacheTemporaryDirectory")
 @mock.patch("cachi2.core.package_managers.gomod.ModuleVersionResolver.from_repo_path")
-@mock.patch("cachi2.core.package_managers.gomod._get_go_work_path")
+@mock.patch("cachi2.core.package_managers.gomod._get_go_work_context_dir")
 def test_fetch_gomod_source(
-    mock_get_go_work_path: mock.Mock,
+    mock_get_go_work_context_dir: mock.Mock,
     mock_version_resolver: mock.Mock,
     mock_tmp_dir: mock.Mock,
     mock_resolve_gomod: mock.Mock,
@@ -1799,7 +1797,7 @@ def test_fetch_gomod_source(
             app_dir.path.relative_to(gomod_request.source_dir).as_posix()
         ]
 
-    mock_get_go_work_path.return_value = None
+    mock_get_go_work_context_dir.return_value = None
     mock_resolve_gomod.side_effect = resolve_gomod_mocked
     mock_find_missing_gomod_files.return_value = []
     mock_get_repository_name.return_value = "github.com/my-org/my-repo"
