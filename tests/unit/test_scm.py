@@ -9,6 +9,7 @@ from git.repo import Repo
 
 from cachi2.core.errors import FetchError, UnsupportedFeature
 from cachi2.core.scm import RepoID, clone_as_tarball, get_repo_id
+from tests.unit.utils import _check_tar_members
 
 INITIAL_COMMIT = "78510c591e2be635b010a52a7048b562bad855a3"
 
@@ -76,6 +77,7 @@ def test_clone_as_tarball(golang_repo_path: Path, tmp_path: Path) -> None:
     clone_as_tarball(f"file://{original_path}", INITIAL_COMMIT, to_path)
 
     with tarfile.open(to_path) as tar:
+        _check_tar_members(to_path, tar.getmembers(), tmp_path)
         tar.extractall(tmp_path / "my-repo")
 
     my_path = tmp_path / "my-repo" / "app"

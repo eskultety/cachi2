@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.unit.utils import _check_tar_members
+
 
 @pytest.fixture
 def data_dir() -> Path:
@@ -13,7 +15,9 @@ def data_dir() -> Path:
 @pytest.fixture
 def golang_repo_path(data_dir: Path, tmp_path: Path) -> Path:
     """Extract the golang git repo tarball to a tmpdir, return the path to the repo."""
-    with tarfile.open(data_dir / "golang_git_repo.tar.gz") as tar:
+    tarpath = data_dir / "golang_git_repo.tar.gz"
+    with tarfile.open(tarpath) as tar:
+        _check_tar_members(tarpath, tar.getmembers(), tmp_path)
         tar.extractall(tmp_path)
 
     return tmp_path / "golang_git_repo"
