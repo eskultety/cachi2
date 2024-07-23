@@ -285,6 +285,7 @@ class _ComponentResolver:
 
         locator = package.parsed_locator
         checksum = package.checksum
+        name = None
 
         if isinstance(locator, NpmLocator):
             # npm dependencies have reliable names and versions in yarn info output
