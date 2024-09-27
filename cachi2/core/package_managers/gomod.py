@@ -1535,7 +1535,6 @@ def _vendor_deps(
     contained the correct content.
 
     :param app_dir: path to the module directory
-    :param can_make_changes: is Cachi2 allowed to make changes?
     :param run_params: common params for the subprocess calls to `go`
     :return: the list of Go modules parsed from vendor/modules.txt
     :raise PackageRejected: if vendor directory changed and Cachi2 is not allowed to make changes
