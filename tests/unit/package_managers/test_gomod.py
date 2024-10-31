@@ -38,6 +38,7 @@ from cachi2.core.package_managers.gomod import (
     _get_repository_name,
     _parse_go_sum,
     _parse_local_modules,
+    _parse_packages,
     _parse_vendor,
     _parse_workspace_module,
     _process_modules_json_stream,
@@ -2337,3 +2338,42 @@ class TestGo:
         error_msg = f"Could not extract Go toolchain version from Go's output: '{go_output}'"
         with pytest.raises(PackageManagerError, match=error_msg):
             Go(release=None).release
+
+
+@mock.patch("cachi2.core.package_managers.gomod.run_cmd")
+def test__parse_packages(mock_run_cmd: mock.Mock, rooted_tmp_path: RootedPath) -> None:
+    go_packages_dict: list[dict[str, Any]] = [
+        {
+            "ImportPath": "foo/bar",
+            "Module": {
+                "Path": "foo/bar",
+                "Main": True,
+                "Version": "v1.2.3",
+                "Dir": f"{rooted_tmp_path}/foo/bar",
+                "GoMod": f"{rooted_tmp_path}/foo/bar/go.mod",
+                "GoVersion": "1.999.999"
+            }
+        },
+        {"ImportPath": "internal/goarch", "Standard": True},
+        {"ImportPath": "unsafe", "Standard": True},
+        {"ImportPath": "internal/abi", "Standard": True, "Deps": ["internal/goarch", "unsafe"]},
+    ]
+    expected = [
+        {
+            "import_path": "foo/bar",
+            "standard": False,
+            "module": {"path": "foo/bar", "version": "v1.2.3", "main": True, "replace": None}
+        },
+        {"import_path": "internal/goarch", "standard": True, "module": None},
+        {"import_path": "unsafe", "standard": True, "module": None},
+        {"import_path": "internal/abi", "standard": True, "module": None},
+    ]
+    go_packages_json = "\n".join([json.dumps(o) for o in go_packages_dict])
+
+    mock_run_cmd.return_value = go_packages_json
+    env = {"GOTOOLCHAIN": "auto", "GOMODCACHE": f"{str(rooted_tmp_path.path)}"}
+    call_args_list = ["go", "list", "-e", "-deps", "-json=ImportPath,Module,Standard,Deps", "./..."]
+    pkgs = _parse_packages(Go(), {"env": env}, rooted_tmp_path)
+
+    mock_run_cmd.assert_called_once_with(call_args_list, {"env": env})
+    assert [p_model.model_dump() for p_model in pkgs] == expected
