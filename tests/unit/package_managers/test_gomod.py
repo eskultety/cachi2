@@ -585,7 +585,7 @@ def test_parse_local_modules(go: mock.Mock, version_resolver: mock.Mock) -> None
     app_dir = RootedPath("/path/to/project")
     version_resolver.get_golang_version.return_value = "1.0.0"
 
-    main_module, workspace_modules = _parse_local_modules(go, [], {}, app_dir, version_resolver)
+    main_module, workspace_modules = _parse_local_modules(go, {}, app_dir, version_resolver)
 
     assert main_module == ParsedModule(
         path="myorg.com/my-project",
