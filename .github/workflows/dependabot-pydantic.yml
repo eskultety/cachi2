@@ -1,14 +1,15 @@
 name: Run pip-compile whenever pydantic/pydantic core is updated by Dependabot
+run-name: dependabot_pipcompile
 
 on:
-  pull_request:
-    types:
-      - opened
-      - reopened
-      - synchronize
-    paths:
-      - requirements.txt
-      - requirements-extras.txt
+  # pull_request:
+  #   types:
+  #     - opened
+  #     - reopened
+  #     - synchronize
+  #   paths:
+  #     - requirements.txt
+  #     - requirements-extras.txt
   push:
     branches:
       - "dependabot/**"
@@ -17,23 +18,29 @@ on:
 
 jobs:
   update-pydantic-core:
-    if: ${{ startsWith(github.event.pull_request.head.ref || github.ref, 'dependabot/') &&
-            contains(github.event.head_commit.message, 'pydantic') }}
+    if: ${{ contains(github.event.head_commit.message, 'pydantic') }}
     runs-on: ubuntu-24.04
     container:
       image: python:3.9-alpine
 
     steps:
+      # Step 2: Install git as we need it for the checkout action
+      - name: Echo stuff
+        run: |
+          echo "PR ref: ${{ github.event.pull_request.head.ref }}"
+          echo "GH ref: ${{ github.ref }}"
+
+      - name: Install dependencies
+        run: apk update && apk add --no-cache git
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # Step 2: Install dependencies needed for pip-compile
-      - name: Install dependencies
+      - name: Install pip-tools
         run: |
-          apk update && apk add --no-cache git
           pip install --upgrade pip
-          pip install pip-tools
+          pip install --no-cache-dir pip-tools
 
       # Step 4: Run pip-compile to update requirements.txt based on pyproject.toml
       - name: Run pip-compile to update requirements.txt
