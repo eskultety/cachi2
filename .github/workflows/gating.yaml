@@ -5,6 +5,9 @@ on:
   push:
     branches:
       - main
+  workflow_run:
+    workflows: [dependabot_pipcompile]
+    types: [completed]
   workflow_dispatch:
     inputs: {}
 
