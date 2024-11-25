@@ -1,4 +1,5 @@
-name: Run pip-compile whenever pydantic/pydantic core is updated by Dependabot
+name: Check whether pip-compile changes are needed
+run-name: dependabot_pipcompile
 
 on:
   pull_request:
@@ -9,42 +10,59 @@ on:
     paths:
       - requirements.txt
       - requirements-extras.txt
-  push:
-    branches:
-      - "dependabot/**"
   workflow_dispatch:
     inputs: {}
 
+permissions: write-all
+
 jobs:
-  update-pydantic-core:
-    if: ${{ startsWith(github.event.pull_request.head.ref || github.ref, 'dependabot/') &&
-            contains(github.event.head_commit.message, 'pydantic') }}
+  pip-compile-check:
     runs-on: ubuntu-24.04
     container:
       image: python:3.9-alpine
 
     steps:
+      - name: Install dependencies
+        run: apk update && apk add --no-cache git
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # Step 2: Install dependencies needed for pip-compile
-      - name: Install dependencies
+      - name: Install pip-tools
         run: |
-          apk update && apk add --no-cache git
           pip install --upgrade pip
-          pip install pip-tools
+          pip install --no-cache-dir pip-tools
 
       # Step 4: Run pip-compile to update requirements.txt based on pyproject.toml
       - name: Run pip-compile to update requirements.txt
+        id: gitdiff
         run: |
+          git config --global --add safe.directory "*"
           pip-compile --generate-hashes --output-file=requirements.txt pyproject.toml
+          pip-compile \
+              --all-extras \
+              --allow-unsafe \
+              --generate-hashes \
+              --output-file=requirements-extras.txt \
+              pyproject.toml
+          {
+            echo 'GIT_DIFF<<EOF'
+            git diff -p
+            echo EOF
+          } >> "$GITHUB_ENV"
 
-      # Step 5: Commit and push updated requirements.txt to Dependabot's PR branch
-      - name: Commit and push updated requirements files
-        run: |
-          git config --global user.email "dependabot@users.noreply.github.com"
-          git config --global user.name "dependabot[bot]"
-          git add -u
-          git commit --amend --no-edit
-          git push --force
+      - name: Comment on pull request
+        uses: actions/github-script@v7
+        if: env.GIT_DIFF != ''
+        env:
+          DIFF: "Manual changes are needed. Please apply the following patch and update the pull request:\n```diff\n${{ env.GIT_DIFF }}\n```"
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            github.rest.issues.createComment({
+              issue_number: ${{ github.event.pull_request.number }},
+              owner: context.payload.repository.owner.login,
+              repo: context.payload.repository.name,
+              body: process.env.DIFF
+            })
