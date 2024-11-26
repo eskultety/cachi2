@@ -1,0 +1,37 @@
+name: Run pip-compile whenever pydantic/pydantic core is updated by Dependabot
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+    inputs: {}
+
+jobs:
+  test-job:
+    # if: ${{ startsWith(github.event.pull_request.head.ref || github.ref, 'dependabot/') &&
+    #         contains(github.event.head_commit.message, 'pydantic') }}
+    runs-on: ubuntu-24.04
+    container:
+      image: python:3.9-alpine
+
+    steps:
+      - name: deps
+        run: |
+          apk update && apk add --no-cache git
+          python3 -m pip install --upgrade pip
+          pip install pip-tools
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Step 2: Install dependencies needed for pip-compile
+      - name: Echo stuff
+        run: |
+          echo "PR head ref: ${{github.event.pull_request.head.ref}}"
+          echo "ref: ${{github.ref}}"
+          echo "commit message: ${{github.event.head_commit.message}}"
+          echo has pydantic: "${{contains(github.event.head_commit.message, 'pydantic')}}"
+
+      - name: pip-compile
+        run: pip-compile --generate-hashes --output-file=requirements.txt pyproject.toml
