@@ -58,7 +58,7 @@ jobs:
           - mypy
 
     container:
-      image: python:3.9-slim
+      image: python:3.9-alpine
 
     steps:
     - name: Install dependencies
