@@ -1012,9 +1012,7 @@ def _process_modules_json_stream(
     return main_module, module_list
 
 
-def _parse_workspace_module(
-    app_dir: RootedPath, module: ModuleDict, main_module_version: str
-) -> ParsedModule:
+def _parse_workspace_module(app_dir: RootedPath, module: ModuleDict) -> ParsedModule:
     """Create a ParsedModule from a listed workspace.
 
     The replacement info returned will always be relative to the module currently being processed.
