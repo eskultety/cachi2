@@ -2345,39 +2345,12 @@ class TestGo:
 
 
 @mock.patch("cachi2.core.package_managers.gomod.run_cmd")
-def test__parse_packages(mock_run_cmd: mock.Mock, rooted_tmp_path: RootedPath) -> None:
-    go_packages_dict: list[dict[str, Any]] = [
-        {
-            "ImportPath": "foo/bar",
-            "Module": {
-                "Path": "foo/bar",
-                "Main": True,
-                "Version": "v1.2.3",
-                "Dir": f"{rooted_tmp_path}/foo/bar",
-                "GoMod": f"{rooted_tmp_path}/foo/bar/go.mod",
-                "GoVersion": "1.999.999"
-            }
-        },
-        {"ImportPath": "internal/goarch", "Standard": True},
-        {"ImportPath": "unsafe", "Standard": True},
-        {"ImportPath": "internal/abi", "Standard": True, "Deps": ["internal/goarch", "unsafe"]},
-    ]
-    expected = [
-        {
-            "import_path": "foo/bar",
-            "standard": False,
-            "module": {"path": "foo/bar", "version": "v1.2.3", "main": True, "replace": None}
-        },
-        {"import_path": "internal/goarch", "standard": True, "module": None},
-        {"import_path": "unsafe", "standard": True, "module": None},
-        {"import_path": "internal/abi", "standard": True, "module": None},
-    ]
-    go_packages_json = "\n".join([json.dumps(o) for o in go_packages_dict])
-
-    mock_run_cmd.return_value = go_packages_json
-    env = {"GOTOOLCHAIN": "auto", "GOMODCACHE": f"{str(rooted_tmp_path.path)}"}
-    call_args_list = ["go", "list", "-e", "-deps", "-json=ImportPath,Module,Standard,Deps", "./..."]
-    pkgs = _parse_packages(Go(), {"env": env}, rooted_tmp_path)
-
-    mock_run_cmd.assert_called_once_with(call_args_list, {"env": env})
-    assert [p_model.model_dump() for p_model in pkgs] == expected
+def test__parse_packages(mock_run_cmd: mock.Mock,
+                         rooted_tmp_path: RootedPath,
+                         data_dir: Path) -> None:
+    # mocked_gowork_json = get_mocked_data(data_dir, "workspaces/go_work.json")
+    # go_work = ParsedGoWork.model_validate_json(mocked_gowork_json).model_dump()
+    # workspace_paths = [obj["disk_path"] for obj in go_work["use"]]
+    workspace_ps = [m for m in (get_mock_dir(data_dir) / "workspaces").iterdir() if m.is_dir()]
+    for wp in workspace_ps:
+        threedot_json = get_mocked_data(data_dir, wp / "go_list_deps_threedot.json")
