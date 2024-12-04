@@ -1114,7 +1114,7 @@ def _process_modules_json_stream(
 def _parse_workspace_module(go_work: GoWork, module: ModuleDict) -> ParsedModule:
     """Create a ParsedModule from a listed workspace.
 
-    The replacement info returned will always be relative to the module currently being processed.
+    The replacement info returned will always be relative to the go.work file path.
     """
     # there's only ever going to be a single match
     ws_rootedpath = None
