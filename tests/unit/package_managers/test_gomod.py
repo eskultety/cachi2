@@ -112,8 +112,12 @@ def proc_mock(
     return subprocess.CompletedProcess(args, returncode=returncode, stdout=stdout)
 
 
+def get_mock_dir(data_dir: Path) -> Path:
+    return data_dir / "gomod-mocks"
+
+
 def get_mocked_data(data_dir: Path, filepath: Union[str, Path]) -> str:
-    return data_dir.joinpath("gomod-mocks", filepath).read_text()
+    return (Path(filepath).relative_to(get_mock_dir(data_dir))).read_text()
 
 
 def _parse_mocked_data(data_dir: Path, file_path: str) -> ResolvedGoModule:
