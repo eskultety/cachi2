@@ -47,6 +47,7 @@ from cachi2.core.package_managers.gomod import (
     _vendor_changed,
     _vendor_deps,
     fetch_gomod_source,
+    ParsedGoWork,
 )
 from cachi2.core.rooted_path import PathOutsideRoot, RootedPath
 from tests.common_utils import GIT_REF, write_file_tree
@@ -917,6 +918,64 @@ def test_create_modules_from_parsed_data(
     )
 
     assert modules == expect_modules
+
+
+@pytest.mark.parametrize(
+    "input_json,expected",
+    [
+        pytest.param(
+            """{"Use": [], "Replace": []}""", {"go": None, "toolchain": None, "use": []},
+            id="empty",
+        ),
+        pytest.param(
+            """
+            {
+                "Go": "1.999.999",
+                "Use": [
+                    {"DiskPath": "."},
+                    {"DiskPath": "./foo/bar"},
+                    {"DiskPath": "./bar/baz"}
+                ]
+            }""",
+            {
+                "go": "1.999.999",
+                "toolchain": None,
+                "use": [{"disk_path": "."}, {"disk_path": "./foo/bar"}, {"disk_path": "./bar/baz"}]
+            },
+            id="simple",
+        ),
+        pytest.param(
+            """
+            {
+                "Go": "1.999.999",
+                "Use": [
+                    {"DiskPath": "."},
+                    {"DiskPath": "./foo/bar"},
+                    {"DiskPath": "./bar/baz"}
+                ],
+                "Replace": [
+                    {
+                        "Old": {
+                                    "Path": "github.com/foo/bar"
+                               },
+                        "New": {
+                                    "Path": "github.com/bar/baz",
+                                    "Version": "v0.999.0"
+                               }
+                    }
+                ]
+            }""",
+            {
+                "go": "1.999.999",
+                "toolchain": None,
+                "use": [{"disk_path": "."}, {"disk_path": "./foo/bar"}, {"disk_path": "./bar/baz"}]
+            },
+            id="complex",
+        )
+    ]
+)
+def test_go_work_model(input_json: str, expected: dict) -> None:
+    assert ParsedGoWork.model_validate_json(input_json).model_dump() == expected
 
 
 def test_module_to_component() -> None:
