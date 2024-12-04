@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 from datetime import datetime, timezone
 from functools import cached_property
+from collections import UserDict
 from itertools import chain
 from pathlib import Path
 from types import TracebackType
@@ -444,6 +445,59 @@ class Go:
             raise PackageManagerError(
                 f"Go execution failed: `{' '.join(cmd)}` failed with {rc=}"
             ) from e
+
+
+class GoWork(UserDict):
+    """Representation of Go's go.work file."""
+
+    @staticmethod
+    def _get_go_work_path(app_dir: RootedPath) -> Optional[RootedPath]:
+        go_work_file = Go()(["env", "GOWORK"], {"cwd": app_dir}).rstrip()
+
+        # workspaces can be disabled explicitly with GOWORK=off
+        if not go_work_file or go_work_file == "off":
+            return None
+
+        # make sure that the path to go.work is within the request's root
+        go_work_file_path = Path(go_work_file)
+        return app_dir.re_root(go_work_file_path.parent).join_within_root(go_work_file_path.name)
+
+    def __init__(self, app_dir: RootedPath) -> None:
+        """Initialize GoWork singleton."""
+        path = self._get_go_work_path(app_dir)
+        if path is None:
+            # return empty instance
+            return
+
+        self["dir"] = RootedPath(path.root)
+        self["path"] = self["dir"].join_within_root(path.subpath_from_root)
+
+    def __bool__(self) -> bool:
+        return self.get("path") is not None
+
+    def parse(self, go: Go, run_params: dict[str, Any]) -> None:
+        """Actually parse the go.work file."""
+        # NOTE: This is only a temporary solution. This method is to be merged to __init__. We
+        # can't do that just yet because this is being called from fetch_gomod_source which is
+        # before we set up the correct Go toolchains. We don't need toolchains to query the GOWORK
+        # env variable, but we need correct toolchain for everything else, otherwise go might
+        # complain about not meeting the required versions, so make this effectively a "lazy"
+        # evaluation driven by the caller.
+        go_work_json = go(["work", "edit", "-json"], run_params)
+        self._data = ParsedGoWork.model_validate_json(go_work_json).model_dump() | self.data
+
+    def workspace_paths(self) -> Iterable[RootedPath]:
+        """Get a list of paths to all workspace modules.
+
+        For easier identification of a module coming from various go command streams we provide
+        both relative path (as reported by go.work) and absolute path of each workspace.
+
+        :return:RootedPath instance iterable where root is go.work's containing directory
+        """
+        if self.get("use", []) == []:
+            return []
+
+        return iter(self["dir"].join_within_root(p["disk_path"]) for p in self["use"])
 
 
 ModuleID = tuple[str, str]
