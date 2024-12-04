@@ -27,6 +27,7 @@ from typing import (
 import backoff
 import git
 import pydantic
+from pydantic.alias_generators import to_pascal
 import semver
 from packageurl import PackageURL
 from packaging import version
@@ -68,15 +69,13 @@ class _ParsedModel(pydantic.BaseModel):
 
     >>> SomeModel.model_validate({"SomeAttribute": "hello"})
     SomeModel(some_attribute="hello")
+
+    >>> SomeModel(some_attribute="hello")
+    SomeModel(some_attribute="hello")
     """
 
-    class Config:
-        @staticmethod
-        def alias_generator(attr_name: str) -> str:
-            return "".join(word.capitalize() for word in attr_name.split("_"))
-
-        # allow SomeModel(some_attribute="hello"), not just SomeModel(SomeAttribute="hello")
-        populate_by_name = True
+    model_config = pydantic.ConfigDict(alias_generator=to_pascal,
+                                       populate_by_name=True)
 
 
 class ParsedModule(_ParsedModel):
