@@ -24,6 +24,7 @@ from cachi2.core.models.sbom import Component, ExternalReference
 from cachi2.core.rooted_path import RootedPath
 
 CHECKSUM_FORMAT = re.compile(r"^[a-zA-Z0-9]+:[a-zA-Z0-9]+$")
+SerializedUrl = Annotated[AnyUrl, PlainSerializer(lambda url: str(url), return_type=str)]
 
 
 class LockfileMetadata(BaseModel):
@@ -96,7 +97,7 @@ class LockfileArtifactUrl(LockfileArtifactBase):
     :param download_url: The URL to download the artifact from.
     """
 
-    download_url: Annotated[AnyUrl, PlainSerializer(lambda url: str(url), return_type=str)]
+    download_url: SerializedUrl
 
     def resolve_filename(self) -> str:
         """Resolve the filename of the artifact."""
@@ -128,7 +129,7 @@ class LockfileArtifactUrl(LockfileArtifactBase):
 class LockfileArtifactMavenAttributes(BaseModel):
     """Attributes for a Maven artifact in the lockfile."""
 
-    repository_url: Annotated[AnyUrl, PlainSerializer(lambda url: str(url), return_type=str)]
+    repository_url: SerializedUrl
     group_id: str
     artifact_id: str
     version: str
