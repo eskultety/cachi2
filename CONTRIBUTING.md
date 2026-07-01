@@ -365,3 +365,7 @@ significant content to ship on a given release day, we may skip it. Urgent bug a
 are released promptly as needed at the team’s discretion.
 Should we encounter any CI issues on the day of a release, we either release immediately after the
 issue is resolved or skip the release based on the nature of the changes (urgent vs regular).
+
+> [!NOTE]
+> Hermeto does not maintain long-term support (LTS) releases. Only the latest
+> release receives bug fixes, security patches, and new features.
